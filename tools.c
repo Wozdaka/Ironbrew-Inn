@@ -2,8 +2,27 @@
 // tools.h - Univwersal tools to help with game coding
 // ===========================================================================================
 
+
+#include <stdarg.h>
+#include <stdio.h>
 #include "tools.h"
 
+
+
+
+// ===========================================================================================
+// buffer to hold last action message
+// and helper code to populate it with goodness
+// ===========================================================================================
+
+char last_action_msg[LAST_MSG_SIZE];
+
+void set_last_action_msg(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(last_action_msg, sizeof(last_action_msg), format, args);
+    va_end(args);
+}
 
 /* 
 
@@ -25,7 +44,6 @@ Code		Description
 */
 
 // ===========================================================================================
-
 // Utility: print_color_char - renders map symbols in color
 
 void print_color_char(char c) {
