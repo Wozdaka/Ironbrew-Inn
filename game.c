@@ -1,217 +1,119 @@
 // ===========================================================================================
-// game.c - Function Definitions for Ironbrew Inn
+// main.c - Ironbrew Inn Core Loop
 // ===========================================================================================
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <time.h>
-#include "game.h"
-#include "sounds.h"
-#include "tools.h"
+
+#include <stdio.h>          // Standard input/output
+#include <stdlib.h>         // For system(), rand(), etc.
+#include <conio.h>          // for _getchar() 
+#include <time.h>           // For seeding the random number generator
+#include <windows.h>        // virtual console for coloring ansi
+#include "game.h"           // Game-related functions and structures
+#include "sounds.h"         // Placeholder sound system
+
 
 // ===========================================================================================
-// Helper function to find a random empty space on the map
+// Constants for game setup
 
-static void get_random_empty_location(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH], int* x, int* y) {
-    do {
-        *x = rand() % MAP_SIZE_WIDTH;
-        *y = rand() % MAP_SIZE_HEIGHT;
-    } while (map[*y][*x] != ' ');
+#define MAP_SIZE 21
+#define NUM_ZOMBIES 10
+#define NUM_MUGS 10
+#define NUM_AMMO 10
+
+// ===========================================================================================
+// Global game state
+
+
+World world; //  Make the World - it will have ZONE_MAX zones 
+
+// char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]; Old World - Purge later --Ken
+
+Player player; // player data - his location will be in the world map - might re-think that --Ken
+
+// Zombie zombies[NUM_ZOMBIES]; - using lots of memory to put zombie data in the zones by tile
+// int zombie_count = NUM_ZOMBIES; -- see above
+
+// ===========================================================================================
+// Initialize all game elements including player, map, items, and zombies
+
+void init_game() {
+	
+    srand(time(NULL));  // Seed randomness for varied gameplay
+	
+	
+	// okay we got data in .h we need to change init world here and all the gen code in game.c -- ken
+
+    init_world();	// builds world which will include populating the zones with entities and items --Ken
+	
+
 }
 
 // ===========================================================================================
+// Core game loop: runs until player dies, escapes, or quits
 
+void game_loop(void) {
+    char command;
+    int running = 1;
 
-void init_map(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]) {
-    for (int y = 0; y < MAP_SIZE_HEIGHT; y++) {
-        for (int x = 0; x < MAP_SIZE_WIDTH; x++) {
-            if (x == 0 || x == MAP_SIZE_WIDTH - 1 || y == 0 || y == MAP_SIZE_HEIGHT - 1) {
-                map[y][x] = '#';  // Wall
-            } else {
-                map[y][x] = ' ';  // Empty space
-            }
+    while (running) {
+		
+		#ifdef _WIN32
+		system("cls");  // Clear screen for clean redraw
+		#else
+		system("clear");  // Clear screen for clean redraw
+		#endif
+		
+		print_map(world.zones[world.current_zone_id].tiles);
+		
+        print_stats();      // Show player status bar
+
+        printf("Move (WASD), Fire (R), Quit (Q): ");
+		
+		// read in the data so we dont have enter
+		//
+		
+		command = _getch();
+		command = tolower(command);
+		
+
+        // Handle input
+		
+        switch (command) {
+            case MOVE_UP: 
+			case MOVE_LEFT: 
+			case MOVE_DOWN: 
+			case MOVE_RIGHT:
+                player.last_dir = command;  // Track last movement direction
+                move_player(command);  // Attempt move
+                break;
+            case MOVE_FIRE:
+                fire_bullet();  // Fire ranged attack
+                break;
+            case MOVE_QUIT:
+                running = 0;  // Exit game
+                break;
+        }
+
+        // End conditions
+        if (player.hp <= 0) {
+            printf("\n\nYou died! Final Score: %d\n", calculate_score(&player));
+            break;
+        }
+
+        if (player.exited) {
+            printf("\n\nYou escaped the Ironbrew Inn! Final Score: %d\n", calculate_score(&player));
+            break;
         }
     }
-	printf("\n\n");
 }
 
 // ===========================================================================================
-// Prints Map out onto the screen - this will address for now spacing on top and on the left side to use empty space to depth the playing field
+// Program entry point
 
-
-void print_map(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]) {
-
-    printf("\n\n\n\n");
-    for (int y = 0; y < MAP_SIZE_HEIGHT; y++) {
-		printf("    ");
-        for (int x = 0; x < MAP_SIZE_WIDTH; x++) {
-			print_color_char(map[y][x]);             // Prints tiles -- see tools.h for use
-        }
-        putchar('\n');
-    }
-	printf("\n\n\n\n");
-}
-
-// ===========================================================================================
-
-void init_player(Player* player, char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]) {
-    int x, y;
-    get_random_empty_location(map, &x, &y);
-    player->x = x;
-    player->y = y;
-    player->hp = 10;
-    player->ammo = 0;
-    player->mugs = 0;
-    player->kills = 0;
-    player->exited = false;
-    player->last_dir = 'w';
-    map[y][x] = '@';
-}
-
-// ===========================================================================================
-
-void place_entities(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH], Zombie zombies[], int count, char symbol) {
-    for (int i = 0; i < count; i++) {
-        int x, y;
-        get_random_empty_location(map, &x, &y);
-        zombies[i].x = x;
-        zombies[i].y = y;
-        zombies[i].hp = 5;
-        zombies[i].alive = true;
-        map[y][x] = symbol;
-    }
-}
-
-// ===========================================================================================
-
-void place_items(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH], int count, char symbol) {
-    for (int i = 0; i < count; i++) {
-        int x, y;
-        get_random_empty_location(map, &x, &y);
-        map[y][x] = symbol;
-    }
-}
-
-// ===========================================================================================
-
-void place_exit(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]) {
-    int x, y;
-    get_random_empty_location(map, &x, &y);
-    map[y][x] = '>';
-}
-
-// ===========================================================================================
-
-void print_stats(const Player* player) {
-    printf("HP: %d | Ammo: %d | Ales: %d | Kills: %d\n", player->hp, player->ammo, player->mugs, player->kills);
-}
-
-// ===========================================================================================
-
-void move_player(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH], Player* player, Zombie zombies[], int* zombie_count, char direction) {
-    int dx = 0, dy = 0;
-    switch (direction) {
-        case 'w': dy = -1; break;
-        case 's': dy = 1; break;
-        case 'a': dx = -1; break;
-        case 'd': dx = 1; break;
-        default: return;
-    }
-
-    int new_x = player->x + dx;
-    int new_y = player->y + dy;
-    char target = map[new_y][new_x];
-
-    if (target == '#' || target == '@') return;  // Wall or self
-
-    // Handle object interactions
-    if (target == 'U') {
-        player->hp += 2;
-        if (player->hp > 10) player->hp = 10;
-        player->mugs++;
-        play_sound("gulp");
-    } else if (target == 'o') {
-        player->ammo++;
-        play_sound("reload");
-    } else if (target == 'Z') {
-        for (int i = 0; i < *zombie_count; i++) {
-            if (zombies[i].alive && zombies[i].x == new_x && zombies[i].y == new_y) {
-                int player_roll = rand() % 20 + 1;
-                int zombie_roll = rand() % 20 + 1;
-                if (player_roll > zombie_roll) {
-                    int dmg = (player_roll == 20) ? (rand() % 6 + 1) * 2 : rand() % 6 + 1;
-                    zombies[i].hp -= dmg;
-                    play_sound("slash");
-                    if (zombies[i].hp <= 0) {
-                        zombies[i].alive = false;
-                        map[new_y][new_x] = ' ';
-                        player->kills++;
-                    }
-                } else if (player_roll < zombie_roll) {
-                    int dmg = (zombie_roll == 20) ? (rand() % 6 + 1) * 2 : rand() % 6 + 1;
-                    player->hp -= dmg;
-                    play_sound("hurt");
-                } else {
-                    player->hp -= 2;
-                    zombies[i].hp -= 2;
-                }
-                return;
-            }
-        }
-    } else if (target == '>') {
-        player->exited = true;
-        return;
-    }
-
-    // Move the player
-    map[player->y][player->x] = ' ';
-    player->x = new_x;
-    player->y = new_y;
-    map[new_y][new_x] = '@';
-}
-
-// ===========================================================================================
-
-void fire_bullet(char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH], Player* player, Zombie zombies[], int* zombie_count) {
-    if (player->ammo <= 0) return;
-
-    int dx = 0, dy = 0;
-    switch (player->last_dir) {
-        case 'w': dy = -1; break;
-        case 's': dy = 1; break;
-        case 'a': dx = -1; break;
-        case 'd': dx = 1; break;
-        default: return;
-    }
-
-    int bx = player->x + dx;
-    int by = player->y + dy;
-    for (int i = 0; i < 10; i++) {
-        if (map[by][bx] == '#' || map[by][bx] == '>') return;
-        if (map[by][bx] == 'Z') {
-            for (int j = 0; j < *zombie_count; j++) {
-                if (zombies[j].alive && zombies[j].x == bx && zombies[j].y == by) {
-                    zombies[j].hp -= 5;
-                    if (zombies[j].hp <= 0) {
-                        zombies[j].alive = false;
-                        map[by][bx] = ' ';
-                        player->kills++;
-                    }
-                    player->ammo--;
-                    play_sound("pew");
-                    return;
-                }
-            }
-        }
-        bx += dx;
-        by += dy;
-    }
-    player->ammo--;
-}
-
-// ===========================================================================================
-
-int calculate_score(const Player* player) {
-    return player->mugs + (player->kills * 2) + (player->exited ? 10 : 0);
+int main() {
+    init_game();   // Setup game world
+    game_loop();   // Run the game loop
+	printf("\nPress Enter to exit...");
+    getchar();
+    return 0;      // Exit cleanly
 }
