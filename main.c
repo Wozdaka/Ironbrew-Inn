@@ -23,28 +23,35 @@
 // ===========================================================================================
 // Global game state
 
-char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH];
-Player player;
-Zombie zombies[NUM_ZOMBIES];
-int zombie_count = NUM_ZOMBIES;
+
+World world; //  Make the World - it will have ZONE_MAX zones 
+
+// char map[MAP_SIZE_HEIGHT][MAP_SIZE_WIDTH]; Old World - Purge later --Ken
+
+Player player; // player data - his location will be in the world map - might re-think that --Ken
+
+// Zombie zombies[NUM_ZOMBIES]; - using lots of memory to put zombie data in the zones by tile
+// int zombie_count = NUM_ZOMBIES; -- see above
 
 // ===========================================================================================
 // Initialize all game elements including player, map, items, and zombies
 
 void init_game() {
+	
     srand(time(NULL));  // Seed randomness for varied gameplay
-    init_map(map);      // Generate map layout
-    init_player(&player, map);  // Place player on map
-    place_entities(map, zombies, NUM_ZOMBIES, 'Z');  // Spawn zombies
-    place_items(map, NUM_MUGS, 'U');  // Place healing ale mugs
-    place_items(map, NUM_AMMO, 'o');  // Place ammo pickups
-    place_exit(map);    // Set the escape point
+	
+	
+	// okay we got data in .h we need to change init world here and all the gen code in game.c -- ken
+
+    init_world();	// builds world which will include populating the zones with entities and items --Ken
+	
+
 }
 
 // ===========================================================================================
 // Core game loop: runs until player dies, escapes, or quits
 
-void game_loop() {
+void game_loop(void) {
     char command;
     int running = 1;
 
@@ -56,9 +63,9 @@ void game_loop() {
 		system("clear");  // Clear screen for clean redraw
 		#endif
 		
+		print_map(world.zones[world.current_zone_id].tiles);
 		
-        print_map(map);            // Display current game map
-        print_stats(&player);      // Show player status bar
+        print_stats();      // Show player status bar
 
         printf("Move (WASD), Fire (R), Quit (Q): ");
 		
@@ -70,27 +77,31 @@ void game_loop() {
 		
 
         // Handle input
+		
         switch (command) {
-            case 'w':			case 'a': case 's': case 'd':
+            case MOVE_UP: 
+			case MOVE_LEFT: 
+			case MOVE_DOWN: 
+			case MOVE_RIGHT:
                 player.last_dir = command;  // Track last movement direction
-                move_player(map, &player, zombies, &zombie_count, command);  // Attempt move
+                move_player(command);  // Attempt move
                 break;
-            case 'r':
-                fire_bullet(map, &player, zombies, &zombie_count);  // Fire ranged attack
+            case MOVE_FIRE:
+                fire_bullet();  // Fire ranged attack
                 break;
-            case 'q':
+            case MOVE_QUIT:
                 running = 0;  // Exit game
                 break;
         }
 
         // End conditions
         if (player.hp <= 0) {
-            printf("\nYou died! Final Score: %d\n", calculate_score(&player));
+            printf("\n\nYou died! Final Score: %d\n", calculate_score(&player));
             break;
         }
 
         if (player.exited) {
-            printf("\nYou escaped the Ironbrew Inn! Final Score: %d\n", calculate_score(&player));
+            printf("\n\nYou escaped the Ironbrew Inn! Final Score: %d\n", calculate_score(&player));
             break;
         }
     }
@@ -102,5 +113,7 @@ void game_loop() {
 int main() {
     init_game();   // Setup game world
     game_loop();   // Run the game loop
+	printf("\nPress Enter to exit...");
+    getchar();
     return 0;      // Exit cleanly
 }
